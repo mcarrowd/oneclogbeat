@@ -1,9 +1,11 @@
 package beater
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/mcarrowd/oneclogbeat/config"
 	"github.com/mcarrowd/oneclogbeat/onec"
 
 	"github.com/elastic/beats/libbeat/beat"
@@ -12,33 +14,53 @@ import (
 )
 
 type Oneclogbeat struct {
-	client   publisher.Client
-	eventlog *onec.Eventlog
-	done     chan struct{}
+	config    *config.Settings
+	client    publisher.Client
+	eventlogs []onec.Eventlog
+	done      chan struct{}
 }
 
 func New() *Oneclogbeat {
-	return &Oneclogbeat{
-		eventlog: &onec.Eventlog{
-			DbPath: ".\\src\\github.com\\mcarrowd\\oneclogbeat\\testing\\infobase\\1Cv8Log\\1Cv81.lgd",
-		},
-	}
+	return &Oneclogbeat{}
 }
 
 func (ob *Oneclogbeat) Config(b *beat.Beat) error {
+	// Read
+	err := b.RawConfig.Unpack(&ob.config)
+	if err != nil {
+		return fmt.Errorf("Error reading configuration file. %v", err)
+	}
+	// Validate
+	err = ob.config.Validate()
+	if err != nil {
+		return fmt.Errorf("Error validating configuration file. %v", err)
+	}
+	logp.Info("Configuration validated. config=%v", ob.config)
 	return nil
 }
 
 func (ob *Oneclogbeat) Setup(b *beat.Beat) error {
 	ob.client = b.Events
 	ob.done = make(chan struct{})
+	// Populate []eventlogs
+	ob.eventlogs = make([]onec.Eventlog, 0, len(ob.config.Oneclogbeat.Eventlogs))
+	for _, config := range ob.config.Oneclogbeat.Eventlogs {
+		eventlog := onec.Eventlog{
+			Name: config.Name,
+			Path: config.Path,
+		}
+		logp.Info("Initialized Eventlog[%s]", eventlog.Name)
+		ob.eventlogs = append(ob.eventlogs, eventlog)
+	}
 	return nil
 }
 
 func (ob *Oneclogbeat) Run(b *beat.Beat) error {
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go ob.processEventLog(&wg)
+	for _, eventlog := range ob.eventlogs {
+		wg.Add(1)
+		go ob.processEventLog(&wg, eventlog)
+	}
 	wg.Wait()
 	return nil
 }
@@ -55,7 +77,7 @@ func (ob *Oneclogbeat) Stop() {
 	}
 }
 
-func (ob *Oneclogbeat) processEventLog(wg *sync.WaitGroup) {
+func (ob *Oneclogbeat) processEventLog(wg *sync.WaitGroup, eventlog onec.Eventlog) {
 	defer wg.Done()
 	logp.Info("Goroutine started")
 loop:
@@ -67,7 +89,7 @@ loop:
 		}
 
 		// Read
-		events, err := ob.eventlog.ReadEvents()
+		events, err := eventlog.ReadEvents()
 		if err != nil {
 			logp.Warn("ReadEvents() error: %v", err)
 			break

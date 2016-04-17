@@ -12,7 +12,8 @@ import (
 
 type Eventlog struct {
 	LastId int64
-	DbPath string
+	Name   string
+	Path   string
 }
 
 type eventlogRow struct {
@@ -27,7 +28,7 @@ type eventlogRow struct {
 
 func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, error) {
 	var events []common.MapStr
-	db, err := sql.Open("sqlite3", eventlog.DbPath)
+	db, err := sql.Open("sqlite3", eventlog.Path)
 	if err != nil {
 		logp.WTF("%s", err)
 	}
