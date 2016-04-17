@@ -20,7 +20,7 @@ type Oneclogbeat struct {
 func New() *Oneclogbeat {
 	return &Oneclogbeat{
 		eventlog: &onec.Eventlog{
-			DbPath: ".\\src\\github.com\\mcarrowd\\oneclogbeat\\testing\\infobase\\1Cv8Log\\1Cv8111.lgd",
+			DbPath: ".\\src\\github.com\\mcarrowd\\oneclogbeat\\testing\\infobase\\1Cv8Log\\1Cv81.lgd",
 		},
 	}
 }
