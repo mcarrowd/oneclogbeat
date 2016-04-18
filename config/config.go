@@ -8,6 +8,10 @@ import (
 	"github.com/joeshaw/multierror"
 )
 
+const (
+	DefaultRegistryFile = ".oneclogbeat.yml"
+)
+
 type Validator interface {
 	Validate() error
 }
@@ -38,7 +42,8 @@ func (s Settings) Validate() error {
 }
 
 type OneclogbeatConfig struct {
-	Eventlogs []EventlogConfig `config:"event_logs"`
+	Eventlogs    []EventlogConfig `config:"event_logs"`
+	RegistryFile string           `config:"registry_file"`
 }
 
 type EventlogConfig struct {

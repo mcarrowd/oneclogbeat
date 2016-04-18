@@ -11,13 +11,13 @@ import (
 )
 
 type Eventlog struct {
-	LastId int64
+	LastId uint64
 	Name   string
 	Path   string
 }
 
 type eventlogRow struct {
-	id int64
+	id uint64
 	severity, connectID, session, transactionStatus, transactionId, userCode,
 	computerCode, appCode, eventCode, sessionDataSplitCode, dataType, workServerCode,
 	primaryPortCode, secondaryPortCode int
@@ -26,7 +26,7 @@ type eventlogRow struct {
 	date, transactionDate time.Time
 }
 
-func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, error) {
+func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, error) {
 	var events []common.MapStr
 	db, err := sql.Open("sqlite3", eventlog.Path)
 	if err != nil {
@@ -43,13 +43,12 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, error) {
 	}
 	defer rows.Close()
 	rowNumber := 1
+	var row eventlogRow
 	for rows.Next() {
 		if rowNumber == 1 {
 			events = make([]common.MapStr, 0, 50) // TODO POLLING LENGTH!
 		}
 		var iDate, iTransactionDate int64
-		var row eventlogRow
-
 		err = rows.Scan(&row.id, &row.severity, &iDate, &row.connectID,
 			&row.session, &row.transactionStatus, &iTransactionDate, &row.transactionId,
 			&row.userCode, &row.userName, &row.userUuid, &row.computerCode,
@@ -86,14 +85,13 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, error) {
 			"primaryPortName":   &row.primaryPortName,
 			"secondaryPortName": &row.secondaryPortName,
 		})
-		eventlog.LastId = row.id
 		rowNumber++
 	}
 	err = rows.Err()
 	if err != nil {
 		logp.WTF("%s", err)
 	}
-	return events, nil
+	return events, row.id, row.date, nil
 }
 
 func getEventlogQuery() string {
