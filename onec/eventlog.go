@@ -16,7 +16,7 @@ type Eventlog struct {
 	Path   string
 }
 
-type eventlogRow struct {
+type Event struct {
 	id uint64
 	severity, connectID, session, transactionStatus, transactionId, userCode,
 	computerCode, appCode, eventCode, sessionDataSplitCode, dataType, workServerCode,
@@ -43,47 +43,47 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 	}
 	defer rows.Close()
 	rowNumber := 1
-	var row eventlogRow
+	var event Event
 	for rows.Next() {
 		if rowNumber == 1 {
 			events = make([]common.MapStr, 0, 50) // TODO POLLING LENGTH!
 		}
 		var iDate, iTransactionDate int64
-		err = rows.Scan(&row.id, &row.severity, &iDate, &row.connectID,
-			&row.session, &row.transactionStatus, &iTransactionDate, &row.transactionId,
-			&row.userCode, &row.userName, &row.userUuid, &row.computerCode,
-			&row.computerName, &row.appCode, &row.appName, &row.eventCode,
-			&row.eventName, &row.comment, &row.metadataCodes, &row.sessionDataSplitCode,
-			&row.dataType, &row.data, &row.dataPresentation, &row.workServerCode,
-			&row.workServerName, &row.primaryPortCode, &row.primaryPortName, &row.secondaryPortCode,
-			&row.secondaryPortName)
+		err = rows.Scan(&event.id, &event.severity, &iDate, &event.connectID,
+			&event.session, &event.transactionStatus, &iTransactionDate, &event.transactionId,
+			&event.userCode, &event.userName, &event.userUuid, &event.computerCode,
+			&event.computerName, &event.appCode, &event.appName, &event.eventCode,
+			&event.eventName, &event.comment, &event.metadataCodes, &event.sessionDataSplitCode,
+			&event.dataType, &event.data, &event.dataPresentation, &event.workServerCode,
+			&event.workServerName, &event.primaryPortCode, &event.primaryPortName, &event.secondaryPortCode,
+			&event.secondaryPortName)
 		if err != nil {
 			logp.WTF("%s", err)
 		}
-		row.data = encodeWindows1251(row.data)
-		row.date = decodeOnecDate(iDate)
-		row.transactionDate = decodeOnecDate(iTransactionDate)
+		event.data = encodeWindows1251(event.data)
+		event.date = decodeOnecDate(iDate)
+		event.transactionDate = decodeOnecDate(iTransactionDate)
 		events = append(events, common.MapStr{
-			"id":                &row.id,
-			"severity":          &row.severity,
-			"date":              &row.date,
-			"connectId":         &row.connectID,
-			"session":           &row.session,
-			"transactionStatus": &row.transactionStatus,
-			"transactionDate":   &row.transactionDate,
-			"transactionId":     &row.transactionId,
-			"userName":          &row.userName,
-			"userUuid":          &row.userUuid,
-			"computerName":      &row.computerName,
-			"appName":           &row.appName,
-			"eventName":         &row.eventName,
-			"comment":           &row.comment,
-			"dataType":          &row.dataType,
-			"data":              &row.data,
-			"dataPresentation":  &row.dataPresentation,
-			"workServerName":    &row.workServerName,
-			"primaryPortName":   &row.primaryPortName,
-			"secondaryPortName": &row.secondaryPortName,
+			"id":                &event.id,
+			"severity":          &event.severity,
+			"date":              &event.date,
+			"connectId":         &event.connectID,
+			"session":           &event.session,
+			"transactionStatus": &event.transactionStatus,
+			"transactionDate":   &event.transactionDate,
+			"transactionId":     &event.transactionId,
+			"userName":          &event.userName,
+			"userUuid":          &event.userUuid,
+			"computerName":      &event.computerName,
+			"appName":           &event.appName,
+			"eventName":         &event.eventName,
+			"comment":           &event.comment,
+			"dataType":          &event.dataType,
+			"data":              &event.data,
+			"dataPresentation":  &event.dataPresentation,
+			"workServerName":    &event.workServerName,
+			"primaryPortName":   &event.primaryPortName,
+			"secondaryPortName": &event.secondaryPortName,
 		})
 		rowNumber++
 	}
@@ -91,7 +91,7 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 	if err != nil {
 		logp.WTF("%s", err)
 	}
-	return events, row.id, row.date, nil
+	return events, event.id, event.date, nil
 }
 
 func getEventlogQuery() string {
