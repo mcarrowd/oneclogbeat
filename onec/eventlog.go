@@ -140,6 +140,22 @@ func getEventlogQuery() string {
 	return sql
 }
 
+func getDataSplitQuery() string {
+	sql := `
+	SELECT
+	T1.code,
+	T2.name as sessionParamName,
+	T3.dataType as sessionValDataType,
+	T3.data as sessionValData
+	FROM SessionDataSplits as T1
+	INNER JOIN SessionParamCodes as T2 ON T1.sessionParamCode = T2.code
+	INNER JOIN SessionDataCodes as T3 ON T1.sessionParamCode = T3.sessionParamCode and T1.sessionValCode = T3.sessionValCode
+	WHERE T1.code = ?
+	ORDER BY T1.sessionParamCode
+	`
+	return sql
+}
+
 func decodeOnecDate(date int64) time.Time {
 	// Magic numbers to convert Nuraliev Epoch to Unix Epoch
 	var magicNumber1, magicNumber2 int64 = 10000, 62135596800
