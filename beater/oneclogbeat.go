@@ -19,7 +19,7 @@ import (
 type Oneclogbeat struct {
 	config     *config.Settings
 	client     publisher.Client
-	eventlogs  []onec.Eventlog
+	eventlogs  []*onec.Eventlog
 	checkpoint *checkpoint.Checkpoint
 	done       chan struct{}
 }
@@ -63,12 +63,9 @@ func (ob *Oneclogbeat) Setup(b *beat.Beat) error {
 		return err
 	}
 	// Populate []eventlogs
-	ob.eventlogs = make([]onec.Eventlog, 0, len(ob.config.Oneclogbeat.Eventlogs))
+	ob.eventlogs = make([]*onec.Eventlog, 0, len(ob.config.Oneclogbeat.Eventlogs))
 	for _, config := range ob.config.Oneclogbeat.Eventlogs {
-		eventlog := onec.Eventlog{
-			Name: config.Name,
-			Path: config.Path,
-		}
+		eventlog := onec.NewEventlog(config.Name, config.Path)
 		logp.Info("Initialized Eventlog[%s]", eventlog.Name)
 		ob.eventlogs = append(ob.eventlogs, eventlog)
 	}
@@ -101,7 +98,7 @@ func (ob *Oneclogbeat) Stop() {
 	}
 }
 
-func (ob *Oneclogbeat) processEventLog(wg *sync.WaitGroup, eventlog onec.Eventlog, state checkpoint.EventLogState) {
+func (ob *Oneclogbeat) processEventLog(wg *sync.WaitGroup, eventlog *onec.Eventlog, state checkpoint.EventLogState) {
 	defer wg.Done()
 	eventlog.LastId = state.RecordNumber
 	logp.Info("EventLog[%s] goroutine started", eventlog.Name)

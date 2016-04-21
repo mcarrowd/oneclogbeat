@@ -26,6 +26,14 @@ type Event struct {
 	date, transactionDate time.Time
 }
 
+func NewEventlog(name string, path string) *Eventlog {
+	e := &Eventlog{
+		Name: name,
+		Path: path,
+	}
+	return e
+}
+
 func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, error) {
 	var events []common.MapStr
 	db, err := sql.Open("sqlite3", eventlog.Path)
