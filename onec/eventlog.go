@@ -2,6 +2,8 @@ package onec
 
 import (
 	"database/sql"
+	"fmt"
+	"github.com/hashicorp/golang-lru"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/text/encoding/charmap"
 	"time"
@@ -11,9 +13,10 @@ import (
 )
 
 type Eventlog struct {
-	LastId uint64
-	Name   string
-	Path   string
+	LastId                uint64
+	Name                  string
+	Path                  string
+	sessionDataSplitCache *lru.Cache
 }
 
 type Event struct {
@@ -22,7 +25,8 @@ type Event struct {
 	computerCode, appCode, eventCode, sessionDataSplitCode, dataType, workServerCode,
 	primaryPortCode, secondaryPortCode int
 	userName, userUuid, computerName, appName, eventName, comment,
-	metadataCodes, data, dataPresentation, workServerName, primaryPortName, secondaryPortName string
+	metadataCodes, sessionDataSplitPresentation, data, dataPresentation, workServerName, primaryPortName,
+	secondaryPortName string
 	date, transactionDate time.Time
 }
 
@@ -31,6 +35,7 @@ func NewEventlog(name string, path string) *Eventlog {
 		Name: name,
 		Path: path,
 	}
+	e.sessionDataSplitCache, _ = lru.New(64) // <- is enough for anyone
 	return e
 }
 
@@ -71,27 +76,29 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 		event.data = encodeWindows1251(event.data)
 		event.date = decodeOnecDate(iDate)
 		event.transactionDate = decodeOnecDate(iTransactionDate)
+		event.sessionDataSplitPresentation = eventlog.getSessionDataSplitPresentation(db, event.sessionDataSplitCode)
 		events = append(events, common.MapStr{
-			"id":                &event.id,
-			"severity":          &event.severity,
-			"date":              &event.date,
-			"connectId":         &event.connectID,
-			"session":           &event.session,
-			"transactionStatus": &event.transactionStatus,
-			"transactionDate":   &event.transactionDate,
-			"transactionId":     &event.transactionId,
-			"userName":          &event.userName,
-			"userUuid":          &event.userUuid,
-			"computerName":      &event.computerName,
-			"appName":           &event.appName,
-			"eventName":         &event.eventName,
-			"comment":           &event.comment,
-			"dataType":          &event.dataType,
-			"data":              &event.data,
-			"dataPresentation":  &event.dataPresentation,
-			"workServerName":    &event.workServerName,
-			"primaryPortName":   &event.primaryPortName,
-			"secondaryPortName": &event.secondaryPortName,
+			"id":                           &event.id,
+			"severity":                     &event.severity,
+			"date":                         &event.date,
+			"connectId":                    &event.connectID,
+			"session":                      &event.session,
+			"transactionStatus":            &event.transactionStatus,
+			"transactionDate":              &event.transactionDate,
+			"transactionId":                &event.transactionId,
+			"userName":                     &event.userName,
+			"userUuid":                     &event.userUuid,
+			"computerName":                 &event.computerName,
+			"appName":                      &event.appName,
+			"eventName":                    &event.eventName,
+			"comment":                      &event.comment,
+			"sessionDataSplitPresentation": &event.sessionDataSplitPresentation,
+			"dataType":                     &event.dataType,
+			"data":                         &event.data,
+			"dataPresentation":             &event.dataPresentation,
+			"workServerName":               &event.workServerName,
+			"primaryPortName":              &event.primaryPortName,
+			"secondaryPortName":            &event.secondaryPortName,
 		})
 		rowNumber++
 	}
@@ -100,6 +107,40 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 		logp.WTF("%s", err)
 	}
 	return events, event.id, event.date, nil
+}
+
+func (eventlog *Eventlog) getSessionDataSplitPresentation(db *sql.DB, sessionDataSplitCode int) string {
+	var presentation string
+	value, found := eventlog.sessionDataSplitCache.Get(sessionDataSplitCode)
+	if found {
+		presentation, _ = value.(string)
+	} else {
+		logp.Info("EventLog[%s] Session data split cache miss", eventlog.Name)
+		rows, err := db.Query(getDataSplitQuery(), sessionDataSplitCode)
+		if err != nil {
+			logp.WTF("%v", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var name, data string
+			var dataType int
+			err = rows.Scan(&name, &dataType, &data)
+			if err != nil {
+				logp.WTF("%v", err)
+			}
+			data = encodeWindows1251(data)
+			if presentation != "" {
+				presentation += ", "
+			}
+			presentation += fmt.Sprintf("%v: [%d] %v", name, dataType, data)
+		}
+		err = rows.Err()
+		if err != nil {
+			logp.WTF("%v", err)
+		}
+		eventlog.sessionDataSplitCache.Add(sessionDataSplitCode, presentation)
+	}
+	return presentation
 }
 
 func decodeOnecDate(date int64) time.Time {

@@ -49,7 +49,6 @@ func getEventlogQuery() string {
 func getDataSplitQuery() string {
 	sql := `
 	SELECT
-	T1.code,
 	T2.name as sessionParamName,
 	T3.dataType as sessionValDataType,
 	T3.data as sessionValData
