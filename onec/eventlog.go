@@ -12,6 +12,10 @@ import (
 	"github.com/elastic/beats/libbeat/logp"
 )
 
+var (
+	debugf = logp.MakeDebug("onec")
+)
+
 type Eventlog struct {
 	LastId                uint64
 	Name                  string
@@ -74,7 +78,7 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 			logp.WTF("%s", err)
 		}
 		if event.id == lastId {
-			logp.Info("EventLog[%s] multiple occurrences of rowid %d omitted", eventlog.Name, event.id)
+			debugf("EventLog[%s] multiple occurrences of rowid %d omitted", eventlog.Name, event.id)
 			continue
 		}
 		event.data = encodeWindows1251(event.data)
@@ -122,7 +126,7 @@ func (eventlog *Eventlog) getSessionDataSplitPresentation(db *sql.DB, sessionDat
 	if found {
 		presentation, _ = value.(string)
 	} else {
-		logp.Info("EventLog[%s] Session data split cache miss", eventlog.Name)
+		debugf("EventLog[%s] Session data split cache miss for key %d", eventlog.Name, sessionDataSplitCode)
 		rows, err := db.Query(getDataSplitQuery(), sessionDataSplitCode)
 		if err != nil {
 			logp.WTF("%v", err)

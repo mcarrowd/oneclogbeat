@@ -16,6 +16,10 @@ import (
 	"github.com/elastic/beats/libbeat/publisher"
 )
 
+var (
+	debugf = logp.MakeDebug("winlogbeat")
+)
+
 type Oneclogbeat struct {
 	config     *config.Settings
 	client     publisher.Client
@@ -39,7 +43,7 @@ func (ob *Oneclogbeat) Config(b *beat.Beat) error {
 	if err != nil {
 		return fmt.Errorf("Error validating configuration file. %v", err)
 	}
-	logp.Info("Configuration validated. config=%v", ob.config)
+	debugf("Configuration validated. config=%v", ob.config)
 	// Registry file grooming
 	if ob.config.Oneclogbeat.RegistryFile == "" {
 		ob.config.Oneclogbeat.RegistryFile = config.DefaultRegistryFile
@@ -66,7 +70,7 @@ func (ob *Oneclogbeat) Setup(b *beat.Beat) error {
 	ob.eventlogs = make([]*onec.Eventlog, 0, len(ob.config.Oneclogbeat.Eventlogs))
 	for _, config := range ob.config.Oneclogbeat.Eventlogs {
 		eventlog := onec.NewEventlog(config.Name, config.Path)
-		logp.Info("Initialized Eventlog[%s]", eventlog.Name)
+		debugf("Initialized Eventlog[%s]", eventlog.Name)
 		ob.eventlogs = append(ob.eventlogs, eventlog)
 	}
 	return nil
@@ -101,7 +105,7 @@ func (ob *Oneclogbeat) Stop() {
 func (ob *Oneclogbeat) processEventLog(wg *sync.WaitGroup, eventlog *onec.Eventlog, state checkpoint.EventLogState) {
 	defer wg.Done()
 	eventlog.LastId = state.RecordNumber
-	logp.Info("EventLog[%s] goroutine started", eventlog.Name)
+	debugf("EventLog[%s] goroutine started", eventlog.Name)
 loop:
 	for {
 		select {
@@ -116,7 +120,7 @@ loop:
 			logp.Warn("EventLog[%s] ReadEvents() error: %v", eventlog.Name, err)
 			break
 		}
-		logp.Info("EventLog[%s] ReadEvents() returned %d records", eventlog.Name, len(events))
+		debugf("EventLog[%s] ReadEvents() returned %d records", eventlog.Name, len(events))
 
 		// Polling
 		if len(events) == 0 {
