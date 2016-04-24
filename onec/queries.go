@@ -31,7 +31,10 @@ func getEventlogQuery() string {
 	T1.primaryPortCode,
 	ifnull(T7.name, "") as primaryPortName,
 	T1.secondaryPortCode,
-	ifnull(T8.name, "") as secondaryPortName
+	ifnull(T8.name, "") as secondaryPortName,
+	ifnull(T9.metadataCode, 0) as metadataCode,
+	ifnull(T10.name, "") as metadataName,
+	ifnull(T10.uuid, "") as metadataUuid
 	FROM  EventLog T1  
 	LEFT OUTER JOIN AppCodes T4 ON T1.appCode = T4.code 
 	LEFT OUTER JOIN ComputerCodes T3 ON T1.computerCode = T3.code 
@@ -40,8 +43,10 @@ func getEventlogQuery() string {
 	LEFT OUTER JOIN WorkServerCodes T6 ON T1.workServerCode = T6.code 
 	LEFT OUTER JOIN PrimaryPortCodes T7 ON T1.primaryPortCode = T7.code 
 	LEFT OUTER JOIN SecondaryPortCodes T8 ON T1.secondaryPortCode = T8.code 
+	LEFT OUTER JOIN EventLogMetadata T9 ON T1.rowID = T9.eventLogID
+	LEFT OUTER JOIN MetadataCodes T10 ON T9.metadataCode = T10.code
 	WHERE (id > ?) 
-	ORDER BY id limit 3
+	ORDER BY T1.rowID, T9.metadataCode limit 3
 	`
 	return sql
 }

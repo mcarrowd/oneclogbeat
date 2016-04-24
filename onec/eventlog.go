@@ -23,10 +23,10 @@ type Event struct {
 	id uint64
 	severity, connectID, session, transactionStatus, transactionId, userCode,
 	computerCode, appCode, eventCode, sessionDataSplitCode, dataType, workServerCode,
-	primaryPortCode, secondaryPortCode int
+	primaryPortCode, secondaryPortCode, metadataCode int
 	userName, userUuid, computerName, appName, eventName, comment,
 	metadataCodes, sessionDataSplitPresentation, data, dataPresentation, workServerName, primaryPortName,
-	secondaryPortName string
+	secondaryPortName, metadataName, metadataUuid string
 	date, transactionDate time.Time
 }
 
@@ -55,7 +55,7 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 		logp.WTF("%s", err)
 	}
 	defer rows.Close()
-	rowNumber := 1
+	var rowNumber, lastId uint64 = 1, 0
 	var event Event
 	for rows.Next() {
 		if rowNumber == 1 {
@@ -69,9 +69,13 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 			&event.eventName, &event.comment, &event.metadataCodes, &event.sessionDataSplitCode,
 			&event.dataType, &event.data, &event.dataPresentation, &event.workServerCode,
 			&event.workServerName, &event.primaryPortCode, &event.primaryPortName, &event.secondaryPortCode,
-			&event.secondaryPortName)
+			&event.secondaryPortName, &event.metadataCode, &event.metadataName, &event.metadataUuid)
 		if err != nil {
 			logp.WTF("%s", err)
+		}
+		if event.id == lastId {
+			logp.Info("EventLog[%s] multiple occurrences of rowid %d omitted", eventlog.Name, event.id)
+			continue
 		}
 		event.data = encodeWindows1251(event.data)
 		event.date = decodeOnecDate(iDate)
@@ -99,8 +103,11 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 			"workServerName":               &event.workServerName,
 			"primaryPortName":              &event.primaryPortName,
 			"secondaryPortName":            &event.secondaryPortName,
+			"metadataName":                 &event.metadataName,
+			"metadataUuid":                 &event.metadataUuid,
 		})
 		rowNumber++
+		lastId = event.id
 	}
 	err = rows.Err()
 	if err != nil {
