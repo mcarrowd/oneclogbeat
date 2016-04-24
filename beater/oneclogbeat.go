@@ -12,6 +12,7 @@ import (
 	"github.com/elastic/beats/winlogbeat/checkpoint"
 
 	"github.com/elastic/beats/libbeat/beat"
+	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/publisher"
 )
@@ -115,12 +116,12 @@ loop:
 		}
 
 		// Read
-		events, lastId, timestamp, err := eventlog.ReadEvents()
+		events, err := eventlog.ReadEvents()
 		if err != nil {
 			logp.Warn("EventLog[%s] ReadEvents() error: %v", eventlog.Name, err)
 			break
 		}
-		debugf("EventLog[%s] ReadEvents() returned %d records", eventlog.Name, len(events))
+		debugf("EventLog[%s] ReadEvents() returned %d events", eventlog.Name, len(events))
 
 		// Polling
 		if len(events) == 0 {
@@ -128,9 +129,16 @@ loop:
 			continue
 		}
 
+		// Format
+		lastId, timestamp := events[len(events)-1].Id, events[len(events)-1].Date
+		eventMaps := make([]common.MapStr, 0, len(events))
+		for _, event := range events {
+			eventMaps = append(eventMaps, event.ToMapStr())
+		}
+
 		// Publish
-		numEvents := len(events)
-		ok := ob.client.PublishEvents(events, publisher.Sync, publisher.Guaranteed)
+		numEvents := len(eventMaps)
+		ok := ob.client.PublishEvents(eventMaps, publisher.Sync, publisher.Guaranteed)
 		if ok {
 			eventlog.LastId = lastId
 			logp.Info("EventLog[%s] Successfully published %d events", eventlog.Name, numEvents)

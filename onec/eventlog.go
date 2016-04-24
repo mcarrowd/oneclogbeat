@@ -24,14 +24,14 @@ type Eventlog struct {
 }
 
 type Event struct {
-	id uint64
+	Id uint64
 	severity, connectID, session, transactionStatus, transactionId, userCode,
 	computerCode, appCode, eventCode, sessionDataSplitCode, dataType, workServerCode,
 	primaryPortCode, secondaryPortCode, metadataCode int
 	userName, userUuid, computerName, appName, eventName, comment,
 	metadataCodes, sessionDataSplitPresentation, data, dataPresentation, workServerName, primaryPortName,
 	secondaryPortName, metadataName, metadataUuid string
-	date, transactionDate time.Time
+	Date, transactionDate time.Time
 }
 
 func NewEventlog(name string, path string) *Eventlog {
@@ -43,8 +43,8 @@ func NewEventlog(name string, path string) *Eventlog {
 	return e
 }
 
-func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, error) {
-	var events []common.MapStr
+func (eventlog *Eventlog) ReadEvents() ([]Event, error) {
+	var events []Event
 	db, err := sql.Open("sqlite3", eventlog.Path)
 	if err != nil {
 		logp.WTF("%s", err)
@@ -63,10 +63,10 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 	var event Event
 	for rows.Next() {
 		if rowNumber == 1 {
-			events = make([]common.MapStr, 0, 50) // TODO POLLING LENGTH!
+			events = make([]Event, 0, 50) // TODO POLLING LENGTH!
 		}
 		var iDate, iTransactionDate int64
-		err = rows.Scan(&event.id, &event.severity, &iDate, &event.connectID,
+		err = rows.Scan(&event.Id, &event.severity, &iDate, &event.connectID,
 			&event.session, &event.transactionStatus, &iTransactionDate, &event.transactionId,
 			&event.userCode, &event.userName, &event.userUuid, &event.computerCode,
 			&event.computerName, &event.appCode, &event.appName, &event.eventCode,
@@ -77,47 +77,23 @@ func (eventlog *Eventlog) ReadEvents() ([]common.MapStr, uint64, time.Time, erro
 		if err != nil {
 			logp.WTF("%s", err)
 		}
-		if event.id == lastId {
-			debugf("EventLog[%s] multiple occurrences of rowid %d omitted", eventlog.Name, event.id)
+		if event.Id == lastId {
+			debugf("EventLog[%s] multiple occurrences of rowid %d omitted", eventlog.Name, event.Id)
 			continue
 		}
 		event.data = encodeWindows1251(event.data)
-		event.date = decodeOnecDate(iDate)
+		event.Date = decodeOnecDate(iDate)
 		event.transactionDate = decodeOnecDate(iTransactionDate)
 		event.sessionDataSplitPresentation = eventlog.getSessionDataSplitPresentation(db, event.sessionDataSplitCode)
-		events = append(events, common.MapStr{
-			"id":                           &event.id,
-			"severity":                     &event.severity,
-			"date":                         &event.date,
-			"connectId":                    &event.connectID,
-			"session":                      &event.session,
-			"transactionStatus":            &event.transactionStatus,
-			"transactionDate":              &event.transactionDate,
-			"transactionId":                &event.transactionId,
-			"userName":                     &event.userName,
-			"userUuid":                     &event.userUuid,
-			"computerName":                 &event.computerName,
-			"appName":                      &event.appName,
-			"eventName":                    &event.eventName,
-			"comment":                      &event.comment,
-			"sessionDataSplitPresentation": &event.sessionDataSplitPresentation,
-			"dataType":                     &event.dataType,
-			"data":                         &event.data,
-			"dataPresentation":             &event.dataPresentation,
-			"workServerName":               &event.workServerName,
-			"primaryPortName":              &event.primaryPortName,
-			"secondaryPortName":            &event.secondaryPortName,
-			"metadataName":                 &event.metadataName,
-			"metadataUuid":                 &event.metadataUuid,
-		})
+		events = append(events, event)
 		rowNumber++
-		lastId = event.id
+		lastId = event.Id
 	}
 	err = rows.Err()
 	if err != nil {
 		logp.WTF("%s", err)
 	}
-	return events, event.id, event.date, nil
+	return events, nil
 }
 
 func (eventlog *Eventlog) getSessionDataSplitPresentation(db *sql.DB, sessionDataSplitCode int) string {
@@ -152,6 +128,35 @@ func (eventlog *Eventlog) getSessionDataSplitPresentation(db *sql.DB, sessionDat
 		eventlog.sessionDataSplitCache.Add(sessionDataSplitCode, presentation)
 	}
 	return presentation
+}
+
+func (event *Event) ToMapStr() common.MapStr {
+	m := common.MapStr{
+		"id":                           &event.Id,
+		"severity":                     &event.severity,
+		"date":                         &event.Date,
+		"connectId":                    &event.connectID,
+		"session":                      &event.session,
+		"transactionStatus":            &event.transactionStatus,
+		"transactionDate":              &event.transactionDate,
+		"transactionId":                &event.transactionId,
+		"userName":                     &event.userName,
+		"userUuid":                     &event.userUuid,
+		"computerName":                 &event.computerName,
+		"appName":                      &event.appName,
+		"eventName":                    &event.eventName,
+		"comment":                      &event.comment,
+		"sessionDataSplitPresentation": &event.sessionDataSplitPresentation,
+		"dataType":                     &event.dataType,
+		"data":                         &event.data,
+		"dataPresentation":             &event.dataPresentation,
+		"workServerName":               &event.workServerName,
+		"primaryPortName":              &event.primaryPortName,
+		"secondaryPortName":            &event.secondaryPortName,
+		"metadataName":                 &event.metadataName,
+		"metadataUuid":                 &event.metadataUuid,
+	}
+	return m
 }
 
 func decodeOnecDate(date int64) time.Time {
