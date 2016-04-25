@@ -2,7 +2,6 @@ package beater
 
 import (
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/libbeat/paths"
 	"github.com/elastic/beats/libbeat/publisher"
 )
 
@@ -49,17 +49,13 @@ func (ob *Oneclogbeat) Config(b *beat.Beat) error {
 	if ob.config.Oneclogbeat.RegistryFile == "" {
 		ob.config.Oneclogbeat.RegistryFile = config.DefaultRegistryFile
 	}
-	ob.config.Oneclogbeat.RegistryFile, err = filepath.Abs(ob.config.Oneclogbeat.RegistryFile)
-	if err != nil {
-		return fmt.Errorf("Error getting absolute path of registry file %s. %v",
-			ob.config.Oneclogbeat.RegistryFile, err)
-	}
+	ob.config.Oneclogbeat.RegistryFile = paths.Resolve(paths.Data, ob.config.Oneclogbeat.RegistryFile)
 	logp.Info("State will be read from and persisted to %s", ob.config.Oneclogbeat.RegistryFile)
 	return nil
 }
 
 func (ob *Oneclogbeat) Setup(b *beat.Beat) error {
-	ob.client = b.Events
+	ob.client = b.Publisher.Connect()
 	ob.done = make(chan struct{})
 	// Registry file setup
 	var err error
@@ -100,6 +96,7 @@ func (ob *Oneclogbeat) Stop() {
 	logp.Info("Stopping Oneclogbeat")
 	if ob.done != nil {
 		close(ob.done)
+		ob.client.Close()
 	}
 }
 
@@ -139,12 +136,13 @@ loop:
 		// Publish
 		numEvents := len(eventMaps)
 		ok := ob.client.PublishEvents(eventMaps, publisher.Sync, publisher.Guaranteed)
-		if ok {
-			eventlog.LastId = lastId
-			logp.Info("EventLog[%s] Successfully published %d events", eventlog.Name, numEvents)
-		} else {
-			logp.Warn("EventLog[%s] Failed to publish %d events", eventlog.Name, numEvents)
+		if !ok {
+			// due to using Sync and Guaranteed the ok will only be false on shutdown.
+			// Do not update the internal state and return in this case
+			return
 		}
+		eventlog.LastId = lastId
+		logp.Info("EventLog[%s] Successfully published %d events", eventlog.Name, numEvents)
 
 		// Persist achievements!
 		ob.checkpoint.Persist(eventlog.Name, lastId, timestamp)
